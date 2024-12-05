@@ -1,9 +1,18 @@
 import { DsqlSigner } from '@aws-sdk/dsql-signer';
 import { Client } from 'pg';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
+import { text, pgTable, uuid } from 'drizzle-orm/pg-core';
+
+const owner = pgTable('owner', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  city: text('city').notNull(),
+  telephone: text('telephone'),
+});
 
 export const handler = async () => {
-  const clusterEndpoint = 'oqabtu7fln6kh65nvyj62cbh3e.dsql.us-east-1.on.aws';
+  const clusterEndpoint = 'YOUR_CLUSTER_ENDPOINT';
   let client;
   const region = 'us-east-1';
   try {
@@ -21,13 +30,21 @@ export const handler = async () => {
       port: 5432,
       ssl: true,
     });
-    const db = drizzle({ client });
-    const result = await db.execute('select 1');
 
-    return result;
+    await client.connect();
+
+    const db = drizzle(client, { schema: { owner } });
+    await db
+      .insert(owner)
+      .values({ name: 'John Doe', city: 'Anytown', telephone: '555-555-1900' });
+    const owners = await db.select().from(owner);
+
+    await db.delete(owner).where(eq(owner.name, 'John Doe'));
+
+    return owners;
   } catch (error) {
     console.error(error);
-    return;
+    return error;
   } finally {
     client?.end();
   }
